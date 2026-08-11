@@ -5,7 +5,7 @@
     "platform": "server",
     "version": "0.1.0",
     "author": "Maskviva",
-    "description": "A cross-platform Minecraft server mod loader.",
+    "description": "Cross-Protocol Adaptation Plugin",
     "dependencies": [
         {
             "name": "levilamina-rust-loader"
