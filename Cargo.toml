@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/bedrock-codec",
+    "crates/bedrock-protocol",
+    "crates/crossbind-mod",
+]
+
+[profile.release]
+lto = "thin"

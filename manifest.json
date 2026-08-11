@@ -1,0 +1,19 @@
+{
+    "name": "crossbind",
+    "entry": "crossbind.dll",
+    "type": "rust",
+    "platform": "server",
+    "version": "0.1.0",
+    "author": "Maskviva",
+    "description": "A cross-platform Minecraft server mod loader.",
+    "dependencies": [
+        {
+            "name": "levilamina-rust-loader"
+        }
+    ],
+    "minecraft": {
+        "bds_version": "1.26.20",
+        "levilamina_version": "26.20.4",
+        "abi_version": 5
+    }
+}
