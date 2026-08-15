@@ -30,7 +30,7 @@ impl Translation {
     }
 }
 
-fn trace_limit() -> u32 {
+pub fn trace_limit() -> u32 {
     static LIMIT: OnceLock<u32> = OnceLock::new();
     *LIMIT.get_or_init(|| {
         let on = std::env::var("CROSSBIND_TRACE")

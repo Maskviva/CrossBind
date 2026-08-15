@@ -3,10 +3,11 @@ use bedrock_codec::prelude::*;
 use crate::connection::ConnState;
 use crate::direction::Direction;
 use crate::packet_ids::ids;
+use crate::pipeline::trace_limit;
+use crate::steps::crafting_data_v2168::crafting_data;
 use crate::steps::item_stack_v2168::{
     cache_item_registry, item_stack_request, item_stack_response,
 };
-use crate::steps::crafting_data_v2168::crafting_data;
 use crate::steps::player_list_v2168::player_list;
 use crate::translator::Translator;
 
@@ -829,11 +830,13 @@ fn player_auth_input_to_v1001(
     set_flag(&mut flags, FLAG_CLIENT_PREDICTED_VEHICLE, has_vehicle);
 
     if has_item_interaction || has_block_actions {
-        if let Some(state) = state.as_deref_mut() {
-            let bytes = payload.len();
-            state.notices.push(format!(
-                "auth input: interaction={has_item_interaction} block_actions={has_block_actions} flags={flags:?} payload={bytes} B"
-            ));
+        if trace_limit() != 0 {
+            if let Some(state) = state.as_deref_mut() {
+                let bytes = payload.len();
+                state.notices.push(format!(
+                    "auth input: interaction={has_item_interaction} block_actions={has_block_actions} flags={flags:?} payload={bytes} B"
+                ));
+            }
         }
     }
 
@@ -1466,10 +1469,7 @@ fn build(name: &'static str, server_protocol: u32, client_protocol: u32) -> Tran
     );
     step = step.cancel_all(
         Direction::Serverbound,
-        &[
-            ids::PLAYER_SKIN,
-            ids::STRUCTURE_BLOCK_UPDATE,
-        ],
+        &[ids::PLAYER_SKIN, ids::STRUCTURE_BLOCK_UPDATE],
     );
 
     if !to_client_v2168 {
@@ -1717,10 +1717,7 @@ mod tests {
     fn an_absent_join_info_leaves_the_trailing_ids_alone() {
         let ids: [u8; 4] = [0, 0, 0, 0];
 
-        for inner in [
-            vec![0u8],
-            vec![1u8, 0, 0, 0],
-        ] {
+        for inner in [vec![0u8], vec![1u8, 0, 0, 0]] {
             let mut original = inner.clone();
             original.extend_from_slice(&ids);
 
@@ -2098,11 +2095,7 @@ mod tests {
 
         assert_eq!(
             &widened[3..15],
-            &[
-                0xFB, 0xFF, 0xFF, 0xFF,
-                0x02, 0x00, 0x00, 0x00,
-                0xFC, 0xFF, 0xFF, 0xFF,
-            ]
+            &[0xFB, 0xFF, 0xFF, 0xFF, 0x02, 0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0xFF,]
         );
         assert_eq!(widened[15], 0x01, "entry count is a uvarint now");
     }
@@ -2199,19 +2192,12 @@ mod tests {
 
         let out_entry = |y: u8| {
             [
-                0xfe, y, 0x03, 0x06,
-                0x00,
-                0x02, 0x00,
-                0x02, 0x00,
-                0x01, 0, 0, 0, 0, 0, 0, 0, 0,
+                0xfe, y, 0x03, 0x06, 0x00, 0x02, 0x00, 0x02, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0, 0,
             ]
         };
         let mut expected = vec![
-            0x01, 0xd0, 0x0f,
-            0xfc, 0xff, 0xff, 0xff,
-            0x00, 0x00, 0x00, 0x00,
-            0xfb, 0xff, 0xff, 0xff,
-            0x02,
+            0x01, 0xd0, 0x0f, 0xfc, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xfb, 0xff, 0xff,
+            0xff, 0x02,
         ];
         expected.extend_from_slice(&out_entry(0xe0));
         expected.extend_from_slice(&out_entry(0xe1));
