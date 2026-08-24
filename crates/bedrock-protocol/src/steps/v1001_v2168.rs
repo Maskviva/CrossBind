@@ -9,6 +9,7 @@ use crate::steps::item_stack_v2168::{
     cache_item_registry, item_stack_request, item_stack_response,
 };
 use crate::steps::player_list_v2168::player_list;
+use crate::steps::set_score_v2168::{set_score, set_scoreboard_identity};
 use crate::translator::Translator;
 
 const SUB_CHUNK_MODE_LIMITLESS: u32 = 0xFFFF_FFFF;
@@ -345,6 +346,7 @@ fn full_chunk_data(w: &mut PacketWrapper, to_v2168: bool) -> Result<()> {
     Ok(())
 }
 
+const SUB_CHUNK_RESULT_LEVEL_CHUNK_DOESNT_EXIST: u8 = 2;
 const SUB_CHUNK_RESULT_SUCCESS_ALL_AIR: u8 = 6;
 const HEIGHT_MAP_NONE: u8 = 0;
 const HEIGHT_MAP_HAS_DATA: u8 = 1;
@@ -353,20 +355,36 @@ const HEIGHT_MAP_LEN: usize = 256;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SubChunkShape {
     type_bytes: bool,
+    announce_blob_hash: bool,
     zero_blob_hash: bool,
+    empty_payload: bool,
     strip_content: bool,
 }
 
 impl SubChunkShape {
     const DOCUMENTED: SubChunkShape = SubChunkShape {
         type_bytes: true,
+        announce_blob_hash: true,
         zero_blob_hash: true,
+        empty_payload: true,
         strip_content: false,
     };
 
-    const DEFAULT: SubChunkShape = SubChunkShape {
+    const SUPPRESS_ZERO_HASH: SubChunkShape = SubChunkShape {
         zero_blob_hash: false,
         ..SubChunkShape::DOCUMENTED
+    };
+
+    const SUPPRESS_EMPTY_PAYLOAD: SubChunkShape = SubChunkShape {
+        empty_payload: false,
+        ..SubChunkShape::SUPPRESS_ZERO_HASH
+    };
+
+    const DEFAULT: SubChunkShape = SubChunkShape::SUPPRESS_EMPTY_PAYLOAD;
+
+    const NO_BLOB_HASH: SubChunkShape = SubChunkShape {
+        announce_blob_hash: false,
+        ..SubChunkShape::DEFAULT
     };
 }
 
@@ -381,9 +399,20 @@ fn sub_chunk_shape() -> Option<SubChunkShape> {
                 type_bytes: false,
                 ..SubChunkShape::DOCUMENTED
             }),
+            "c" => Some(SubChunkShape::SUPPRESS_ZERO_HASH),
             "d" => Some(SubChunkShape {
                 type_bytes: false,
-                ..SubChunkShape::DEFAULT
+                ..SubChunkShape::SUPPRESS_ZERO_HASH
+            }),
+            "e" => Some(SubChunkShape::NO_BLOB_HASH),
+            "f" => Some(SubChunkShape {
+                type_bytes: false,
+                ..SubChunkShape::NO_BLOB_HASH
+            }),
+            "g" => Some(SubChunkShape::SUPPRESS_EMPTY_PAYLOAD),
+            "h" => Some(SubChunkShape {
+                type_bytes: false,
+                ..SubChunkShape::SUPPRESS_EMPTY_PAYLOAD
             }),
             "air" | "strip" => Some(SubChunkShape {
                 strip_content: true,
@@ -395,16 +424,26 @@ fn sub_chunk_shape() -> Option<SubChunkShape> {
 }
 
 pub fn sub_chunk_mode_label() -> &'static str {
-    match sub_chunk_shape() {
-        None => "off (packet dropped)",
-        Some(shape) if shape.strip_content => "air (framing only, no blocks)",
-        Some(shape) => match (shape.type_bytes, shape.zero_blob_hash) {
-            (true, true) => "a",
-            (false, true) => "b",
-            (true, false) => "c (default)",
-            (false, false) => "d",
-        },
+    let shape = match sub_chunk_shape() {
+        None => return "off (packet dropped)",
+        Some(shape) => shape,
+    };
+    if shape.strip_content {
+        return "air (framing only, no blocks)";
     }
+    if shape == SubChunkShape::SUPPRESS_EMPTY_PAYLOAD {
+        return "g (default: a zero hash and an empty payload are both left absent)";
+    }
+    if shape == SubChunkShape::SUPPRESS_ZERO_HASH {
+        return "c (empty payload announced present — a v2168 client dies on a long teleport)";
+    }
+    if shape == SubChunkShape::DOCUMENTED {
+        return "a (schema shape, hash 0 included — a v2168 client stalls a second after spawn)";
+    }
+    if !shape.announce_blob_hash {
+        return "e/f (no blob announced — a v2168 client refuses this)";
+    }
+    "b/d/h (height map type bytes omitted)"
 }
 
 fn sub_chunk(w: &mut PacketWrapper, to_v2168: bool, shape: SubChunkShape) -> Result<()> {
@@ -451,11 +490,17 @@ fn sub_chunk_entry(
 
     let result = w.passthrough::<Byte>()?;
 
-    let payload_expected = !cache || result != SUB_CHUNK_RESULT_SUCCESS_ALL_AIR;
+    let source_writes_payload = !cache || result != SUB_CHUNK_RESULT_SUCCESS_ALL_AIR;
     if to_v2168 {
-        w.write::<Bool>(payload_expected);
-        if payload_expected {
-            w.passthrough::<ByteArray>()?;
+        let payload = if source_writes_payload {
+            w.read::<ByteArray>()?
+        } else {
+            Vec::new()
+        };
+        let present = !payload.is_empty() || (source_writes_payload && shape.empty_payload);
+        w.write::<Bool>(present);
+        if present {
+            w.write::<ByteArray>(payload);
         }
     } else {
         let present = w.read::<Bool>()?;
@@ -464,7 +509,7 @@ fn sub_chunk_entry(
         } else {
             Vec::new()
         };
-        if payload_expected {
+        if source_writes_payload {
             w.write::<ByteArray>(payload);
         }
     }
@@ -474,7 +519,8 @@ fn sub_chunk_entry(
 
     if to_v2168 {
         let hash = if cache { w.read::<UInt64Le>()? } else { 0 };
-        let present = cache && (shape.zero_blob_hash || hash != 0);
+        let present =
+            cache && shape.announce_blob_hash && (shape.zero_blob_hash || hash != 0);
         w.write::<Bool>(present);
         if present {
             w.write::<UInt64Le>(hash);
@@ -787,10 +833,12 @@ fn player_auth_input_to_v1001(
     }
 
     if read_double_optional(w)? {
-        if let Some(state) = state.as_deref_mut() {
-            state
-                .notices
-                .push("auth input: tick dropped, carries an ItemStackRequest".to_owned());
+        if trace_limit() != 0 {
+            if let Some(state) = state.as_deref_mut() {
+                state
+                    .notices
+                    .push("auth input: tick dropped, carries an ItemStackRequest".to_owned());
+            }
         }
         w.cancel();
         return Ok(());
@@ -832,10 +880,12 @@ fn player_auth_input_to_v1001(
     if has_item_interaction || has_block_actions {
         if trace_limit() != 0 {
             if let Some(state) = state.as_deref_mut() {
-                let bytes = payload.len();
-                state.notices.push(format!(
-                    "auth input: interaction={has_item_interaction} block_actions={has_block_actions} flags={flags:?} payload={bytes} B"
-                ));
+                if trace_limit() != 0 {
+                    let bytes = payload.len();
+                    state.notices.push(format!(
+                        "auth input: interaction={has_item_interaction} block_actions={has_block_actions} flags={flags:?} payload={bytes} B"
+                    ));
+                }
             }
         }
     }
@@ -1265,18 +1315,93 @@ fn inventory_slot(w: &mut PacketWrapper, to_v2168: bool) -> Result<()> {
     Ok(())
 }
 
+const PLAY_SOUND_ONCE: i32 = 0;
+
+fn play_sound_loop_count() -> i32 {
+    static COUNT: std::sync::OnceLock<i32> = std::sync::OnceLock::new();
+    *COUNT.get_or_init(|| {
+        std::env::var("CROSSBIND_PLAYSOUND_LOOPS")
+            .ok()
+            .and_then(|raw| raw.trim().parse::<i32>().ok())
+            .unwrap_or(PLAY_SOUND_ONCE)
+    })
+}
+
+pub fn play_sound_loop_label() -> String {
+    let count = play_sound_loop_count();
+    if count < 0 {
+        format!("{count} (negative: every sound repeats forever)")
+    } else {
+        format!("{count}")
+    }
+}
+
 fn play_sound(w: &mut PacketWrapper, to_v2168: bool) -> Result<()> {
     w.passthrough::<Str>()?;
     w.passthrough::<BlockPos>()?;
     w.passthrough::<FloatLe>()?;
     w.passthrough::<FloatLe>()?;
     if to_v2168 {
-        w.writer().write_varint(-1);
+        w.writer().write_varint(play_sound_loop_count());
     } else {
         w.reader().read_varint()?;
     }
     w.passthrough_all();
     Ok(())
+}
+
+const STRUCTURE_REDSTONE_SAVE_MODE_MAX: u8 = 3;
+
+fn structure_block_update(
+    w: &mut PacketWrapper,
+    state: &mut ConnState,
+    to_v2168: bool,
+) -> Result<()> {
+    let body = w.reader().read_remaining();
+    let Some((head, save_mode, trigger, waterlogged)) = split_structure_tail(body, to_v2168) else {
+        state.notices.push(format!(
+            "StructureBlockUpdate tail is not the expected \
+             [RedstoneSaveMode][ShouldTrigger][Waterlogged]; dropping it \
+             ({} B, last three bytes {:02x?})",
+            body.len(),
+            &body[body.len().saturating_sub(3)..],
+        ));
+        w.cancel();
+        return Ok(());
+    };
+
+    w.writer().write_bytes(head);
+    if to_v2168 {
+        w.writer().write_u8(save_mode);
+    } else {
+        w.writer().write_varint(save_mode as i32);
+    }
+    w.writer().write_bool(trigger);
+    w.writer().write_bool(waterlogged);
+    Ok(())
+}
+
+fn split_structure_tail(body: &[u8], to_v2168: bool) -> Option<(&[u8], u8, bool, bool)> {
+    if body.len() < 3 {
+        return None;
+    }
+    let (head, tail) = body.split_at(body.len() - 3);
+    let (raw_mode, trigger, waterlogged) = (tail[0], tail[1], tail[2]);
+    if trigger > 1 || waterlogged > 1 {
+        return None;
+    }
+    let save_mode = if to_v2168 {
+        if raw_mode & 0x81 != 0 {
+            return None;
+        }
+        raw_mode >> 1
+    } else {
+        raw_mode
+    };
+    if save_mode > STRUCTURE_REDSTONE_SAVE_MODE_MAX {
+        return None;
+    }
+    Some((head, save_mode, trigger == 1, waterlogged == 1))
 }
 
 fn transfer(w: &mut PacketWrapper, to_v2168: bool) -> Result<()> {
@@ -1421,6 +1546,12 @@ fn build(name: &'static str, server_protocol: u32, client_protocol: u32) -> Tran
         })
         .clientbound(ids::ADD_PLAYER, move |w, _| add_player(w, to_client_v2168))
         .clientbound(ids::PLAY_SOUND, move |w, _| play_sound(w, to_client_v2168))
+        .clientbound(ids::STRUCTURE_BLOCK_UPDATE, move |w, s| {
+            structure_block_update(w, s, to_client_v2168)
+        })
+        .serverbound(ids::STRUCTURE_BLOCK_UPDATE, move |w, s| {
+            structure_block_update(w, s, to_server_v2168)
+        })
         .clientbound(ids::TRANSFER, move |w, _| transfer(w, to_client_v2168))
         .clientbound(ids::CREATIVE_CONTENT, move |w, _| {
             creative_content(w, to_client_v2168)
@@ -1457,20 +1588,25 @@ fn build(name: &'static str, server_protocol: u32, client_protocol: u32) -> Tran
         None => step.cancel(Direction::Clientbound, ids::SUB_CHUNK),
     };
 
+    step = step
+        .clientbound(ids::SET_SCORE, move |w, state| {
+            if !set_score(w, state, to_client_v2168)? {
+                w.cancel();
+            }
+            Ok(())
+        })
+        .clientbound(ids::SET_SCOREBOARD_IDENTITY, move |w, state| {
+            if !set_scoreboard_identity(w, state, to_client_v2168)? {
+                w.cancel();
+            }
+            Ok(())
+        });
+
     step = step.cancel_all(
         Direction::Clientbound,
-        &[
-            ids::PLAYER_SKIN,
-            ids::MAP_DATA,
-            ids::SET_SCORE,
-            ids::SET_SCOREBOARD_IDENTITY,
-            ids::PLAYER_LOCATION,
-        ],
+        &[ids::PLAYER_SKIN, ids::MAP_DATA, ids::PLAYER_LOCATION],
     );
-    step = step.cancel_all(
-        Direction::Serverbound,
-        &[ids::PLAYER_SKIN, ids::STRUCTURE_BLOCK_UPDATE],
-    );
+    step = step.cancel_all(Direction::Serverbound, &[ids::PLAYER_SKIN]);
 
     if !to_client_v2168 {
         step = step.cancel(
@@ -1492,6 +1628,120 @@ mod tests {
         let mut w = PacketWrapper::new(input);
         handler(&mut w).expect("handler failed");
         w.finish()
+    }
+
+    #[test]
+    fn play_sound_never_asks_the_client_to_repeat_forever() {
+        let mut w = Writer::new();
+        w.write_string("mob.pig.say");
+        w.write_varint(64);
+        w.write_varint(72);
+        w.write_varint(-16);
+        w.write_f32_le(1.0);
+        w.write_f32_le(1.0);
+        w.write_bool(false);
+        let v1001 = w.into_vec();
+
+        let v2168 = run(|w| play_sound(w, true), &v1001);
+
+        let mut r = Reader::new(&v2168);
+        assert_eq!(r.read_string().expect("SoundName"), "mob.pig.say");
+        for _ in 0..3 {
+            r.read_varint().expect("Position");
+        }
+        r.read_f32_le().expect("Volume");
+        r.read_f32_le().expect("Pitch");
+
+        let loops = r.read_varint().expect("LoopCount");
+        assert!(
+            loops >= 0,
+            "LoopCount {loops} is negative, which is the engine's \
+             loop-forever sentinel: one /playsound would never stop"
+        );
+        if std::env::var_os("CROSSBIND_PLAYSOUND_LOOPS").is_none() {
+            assert_eq!(loops, PLAY_SOUND_ONCE, "default has to be a single play");
+        }
+
+        assert!(!r.read_bool().expect("ServerSoundHandle"));
+        assert!(!r.has_remaining());
+
+        assert_eq!(run(|w| play_sound(w, false), &v2168), v1001);
+    }
+
+    #[test]
+    fn structure_block_update_reaches_the_server_instead_of_being_dropped() {
+        assert!(
+            !downgrade().is_cancelled(Direction::Serverbound, ids::STRUCTURE_BLOCK_UPDATE),
+            "cancelling this is what made structure block edits revert on exit"
+        );
+
+        let mut state = ConnState::new(1001);
+        let mut w = Writer::new();
+        w.write_bytes(&[0x11, 0x22, 0x33, 0x44]);
+        w.write_u8(1);
+        w.write_bool(true);
+        w.write_bool(false);
+        let v2168 = w.into_vec();
+
+        let mut wrapper = PacketWrapper::new(&v2168);
+        structure_block_update(&mut wrapper, &mut state, false).expect("handler failed");
+        assert!(!wrapper.is_cancelled());
+        let v1001 = wrapper.finish();
+        assert_eq!(v1001, vec![0x11, 0x22, 0x33, 0x44, 0x02, 0x01, 0x00]);
+
+        let mut wrapper = PacketWrapper::new(&v1001);
+        structure_block_update(&mut wrapper, &mut state, true).expect("handler failed");
+        assert_eq!(wrapper.finish(), v2168);
+        assert!(state.notices.is_empty());
+    }
+
+    #[test]
+    fn structure_block_update_keeps_the_length_it_was_given() {
+        let mut state = ConnState::new(1001);
+        for save_mode in 0..=STRUCTURE_REDSTONE_SAVE_MODE_MAX {
+            for trigger in [false, true] {
+                for waterlogged in [false, true] {
+                    let mut w = Writer::new();
+                    w.write_bytes(&[0xAA; 20]);
+                    w.write_u8(save_mode);
+                    w.write_bool(trigger);
+                    w.write_bool(waterlogged);
+                    let v2168 = w.into_vec();
+
+                    let mut wrapper = PacketWrapper::new(&v2168);
+                    structure_block_update(&mut wrapper, &mut state, false)
+                        .expect("handler failed");
+                    let v1001 = wrapper.finish();
+                    assert_eq!(v1001.len(), v2168.len(), "save mode {save_mode}");
+                    assert_eq!(&v1001[..20], &v2168[..20], "the head must be untouched");
+
+                    let mut wrapper = PacketWrapper::new(&v1001);
+                    structure_block_update(&mut wrapper, &mut state, true).expect("handler failed");
+                    assert_eq!(wrapper.finish(), v2168, "save mode {save_mode}");
+                }
+            }
+        }
+        assert!(state.notices.is_empty());
+    }
+
+    #[test]
+    fn structure_block_update_with_an_unrecognised_tail_is_dropped() {
+        let cases: [(&[u8], bool); 4] = [
+            (&[0x11, 0x22, 0x07, 0x05, 0x00], false),
+            (&[0x11, 0x22, 0x09, 0x00, 0x00], false),
+            (&[0x11, 0x22, 0x01, 0x00, 0x00], true),
+            (&[0x00, 0x01], false),
+        ];
+        for (body, to_v2168) in cases {
+            let mut state = ConnState::new(1001);
+            let mut wrapper = PacketWrapper::new(body);
+            structure_block_update(&mut wrapper, &mut state, to_v2168).expect("handler failed");
+            assert!(
+                wrapper.is_cancelled(),
+                "a tail this shape must fall back to dropping, not to a guess: {body:02x?}"
+            );
+            assert_eq!(state.notices.len(), 1, "and it has to say so once");
+        }
     }
 
     #[test]
@@ -2134,15 +2384,29 @@ mod tests {
             (1, vec![7; 12], false),
         ]);
         for type_bytes in [true, false] {
-            for zero_blob_hash in [true, false] {
-                let shape = SubChunkShape {
-                    type_bytes,
-                    zero_blob_hash,
-                    strip_content: false,
-                };
-                let widened = run(|w| sub_chunk(w, true, shape), &original);
-                let back = run(|w| sub_chunk(w, false, shape), &widened);
-                assert_eq!(back, original, "shape {shape:?} is not its own inverse");
+            for announce_blob_hash in [true, false] {
+                for zero_blob_hash in [true, false] {
+                    for empty_payload in [true, false] {
+                        let shape = SubChunkShape {
+                            type_bytes,
+                            announce_blob_hash,
+                            zero_blob_hash,
+                            empty_payload,
+                            strip_content: false,
+                        };
+                        let widened = run(|w| sub_chunk(w, true, shape), &original);
+                        let back = run(|w| sub_chunk(w, false, shape), &widened);
+                        if announce_blob_hash {
+                            assert_eq!(back, original, "shape {shape:?} is not its own inverse");
+                        } else {
+                            assert_eq!(
+                                back.len(),
+                                original.len(),
+                                "shape {shape:?} moved something other than the hash"
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -2210,7 +2474,9 @@ mod tests {
                     true,
                     SubChunkShape {
                         type_bytes: false,
+                        announce_blob_hash: true,
                         zero_blob_hash: false,
+                        empty_payload: true,
                         strip_content: false,
                     },
                 )
@@ -2221,7 +2487,12 @@ mod tests {
     }
 
     #[test]
-    fn the_default_shape_does_not_announce_a_blob_that_is_not_there() {
+    fn the_default_shape_announces_a_real_hash_and_hides_a_zero_one() {
+        assert!(
+            SubChunkShape::DEFAULT.announce_blob_hash,
+            "a v2168 client leaves the world when an entry with a payload \
+             carries no blob hash; see the capture in the devdocs"
+        );
         assert!(!SubChunkShape::DEFAULT.zero_blob_hash);
         assert!(SubChunkShape::DEFAULT.type_bytes);
         assert!(!SubChunkShape::DEFAULT.strip_content);
@@ -2236,6 +2507,84 @@ mod tests {
         let dropped = run(|w| sub_chunk(w, true, SubChunkShape::DEFAULT), &all_air);
         assert_eq!(*dropped.last().unwrap(), 0x00, "a zero hash goes absent");
         assert_eq!(dropped.len(), kept.len() - 8);
+    }
+
+    #[test]
+    fn an_empty_payload_is_written_absent_by_default() {
+        assert!(!SubChunkShape::DEFAULT.empty_payload);
+        assert!(SubChunkShape::SUPPRESS_ZERO_HASH.empty_payload);
+
+        let mut w = Writer::new();
+        w.write_bool(true);
+        w.write_varint(1000);
+        w.write_varint(0);
+        w.write_varint(0);
+        w.write_varint(0);
+        w.write_u32_le(1);
+        w.write_i8(-114);
+        w.write_i8(12);
+        w.write_i8(-114);
+        w.write_u8(SUB_CHUNK_RESULT_LEVEL_CHUNK_DOESNT_EXIST);
+        w.write_count(0);
+        w.write_u8(HEIGHT_MAP_NONE);
+        w.write_u8(HEIGHT_MAP_NONE);
+        w.write_u64_le(0);
+        let original = w.into_vec();
+
+        let absent = run(|w| sub_chunk(w, true, SubChunkShape::DEFAULT), &original);
+        let announced = run(|w| sub_chunk(w, true, SubChunkShape::SUPPRESS_ZERO_HASH), &original);
+
+        assert_eq!(
+            absent.len(),
+            announced.len() - 1,
+            "the only difference is the zero-length byte array behind the presence bool"
+        );
+        assert_eq!(
+            absent[20], 0x00,
+            "a v975 chunk-doesn't-exist entry hands over no sub-chunk, so the optional is None"
+        );
+        assert_eq!(announced[20], 0x01);
+        assert_eq!(absent[19], SUB_CHUNK_RESULT_LEVEL_CHUNK_DOESNT_EXIST);
+
+        let back = run(|w| sub_chunk(w, false, SubChunkShape::DEFAULT), &absent);
+        assert_eq!(back, original, "None widens back into the empty array v975 wrote");
+    }
+
+    #[test]
+    fn a_real_payload_survives_the_empty_payload_rule() {
+        let original = v1001_sub_chunk(&[(1, vec![9; 40], true), (1, vec![7; 12], false)]);
+        let widened = run(|w| sub_chunk(w, true, SubChunkShape::DEFAULT), &original);
+        let back = run(|w| sub_chunk(w, false, SubChunkShape::DEFAULT), &widened);
+        assert_eq!(back, original);
+    }
+
+    #[test]
+    fn mode_e_drops_every_hash_and_is_not_the_default() {
+        assert!(!SubChunkShape::NO_BLOB_HASH.announce_blob_hash);
+        assert_ne!(
+            SubChunkShape::DEFAULT,
+            SubChunkShape::NO_BLOB_HASH,
+            "mode e is opt-in: it costs 8 bytes per entry and a v2168 client \
+             refuses the result"
+        );
+
+        let original = v1001_sub_chunk(&[(SUB_CHUNK_RESULT_SUCCESS_ALL_AIR, vec![], false)]);
+        let lean = run(|w| sub_chunk(w, true, SubChunkShape::NO_BLOB_HASH), &original);
+        let announced = run(|w| sub_chunk(w, true, SubChunkShape::DEFAULT), &original);
+
+        assert_eq!(*lean.last().unwrap(), 0x00);
+        assert_eq!(
+            lean.len(),
+            announced.len() - 8,
+            "8 bytes per entry, which is what the -617 in the capture was"
+        );
+
+        let back = run(|w| sub_chunk(w, false, SubChunkShape::NO_BLOB_HASH), &lean);
+        assert_eq!(
+            back.len(),
+            original.len(),
+            "only the hash is lost; the framing has to survive"
+        );
     }
 
     fn v2168_auth_input(

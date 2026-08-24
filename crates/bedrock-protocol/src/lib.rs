@@ -18,6 +18,7 @@ pub use direction::Direction;
 pub use manager::{Chain, Registry};
 pub use mapping::{IdShift, MappingData};
 pub use pipeline::{translate, Outcome, Translation};
+pub use steps::set_score_v2168::describe_layout as describe_set_score_layout;
 pub use translator::{Handler, Translator};
 pub use versions::Version;
 
@@ -120,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn a_malformed_packet_forwards_the_original_bytes() {
+    fn a_malformed_packet_is_dropped_instead_of_forwarded() {
         let registry = build_registry(944);
         let mut state = ConnState::new(944);
         state.client_protocol = 975;
@@ -133,8 +134,39 @@ mod tests {
             packet_ids::ids::SET_ACTOR_DATA,
             &body,
         );
-        assert_eq!(result.outcome, Outcome::Unchanged);
+        assert_eq!(result.outcome, Outcome::Drop);
         assert_eq!(warnings(&result), 1);
+
+        let again = translate(
+            &registry,
+            &mut state,
+            Direction::Clientbound,
+            packet_ids::ids::SET_ACTOR_DATA,
+            &body,
+        );
+        assert_eq!(again.outcome, Outcome::Drop);
+        assert_eq!(warnings(&again), 0, "the same failure repeats silently");
+    }
+
+    #[test]
+    fn a_malformed_base_step_packet_still_forwards() {
+        let registry = build_registry(944);
+        let mut state = ConnState::new(944);
+
+        let result = translate(
+            &registry,
+            &mut state,
+            Direction::Serverbound,
+            packet_ids::ids::REQUEST_NETWORK_SETTINGS,
+            &[0x00u8, 0x01],
+        );
+
+        assert_eq!(
+            result.outcome,
+            Outcome::Unchanged,
+            "dropping the handshake would replace a version-mismatch screen \
+             with a connection that hangs"
+        );
     }
 
     fn warnings(result: &crate::pipeline::Translation) -> usize {

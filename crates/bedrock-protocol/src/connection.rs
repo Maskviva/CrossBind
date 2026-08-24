@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use crate::direction::Direction;
 use crate::versions;
 
 #[derive(Debug, Clone)]
@@ -10,6 +11,7 @@ pub struct ConnState {
     pub notices: Vec<String>,
     pub item_ids: HashMap<String, i32>,
     pub item_names: HashMap<i32, String>,
+    reported_failures: HashSet<(Direction, u16)>,
 }
 
 impl ConnState {
@@ -21,7 +23,12 @@ impl ConnState {
             notices: Vec::new(),
             item_ids: HashMap::new(),
             item_names: HashMap::new(),
+            reported_failures: HashSet::new(),
         }
+    }
+
+    pub fn first_failure(&mut self, direction: Direction, packet_id: u16) -> bool {
+        self.reported_failures.insert((direction, packet_id))
     }
 
     pub fn is_identified(&self) -> bool {

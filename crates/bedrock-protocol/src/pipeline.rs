@@ -82,6 +82,10 @@ pub fn translate(
                 crate::steps::v1001_v2168::sub_chunk_mode_label()
             ));
             result.notices.push(format!(
+                "PlaySound LoopCount {} (override with CROSSBIND_PLAYSOUND_LOOPS)",
+                crate::steps::v1001_v2168::play_sound_loop_label()
+            ));
+            result.notices.push(format!(
                 "blob cache {} (override with CROSSBIND_BLOB_CACHE)",
                 if crate::steps::v975_v1001::blob_cache_enabled() {
                     "on"
@@ -92,7 +96,12 @@ pub fn translate(
         }
         if seq < limit {
             let what = match &result.outcome {
-                Outcome::Unchanged => format!("forward {} B", body.len()),
+                Outcome::Unchanged => match packet_id {
+                    106 | 107 | 108 | 112 => {
+                        format!("forward {} B body={}", body.len(), hex_head(body, 96))
+                    }
+                    _ => format!("forward {} B", body.len()),
+                },
                 Outcome::Rewritten(bytes) => match packet_id {
                     58 => format!(
                         "rewrite {} B -> {} B head={}",
@@ -114,9 +123,21 @@ pub fn translate(
                         hex_head(body, 12),
                         hex_head(bytes, 12)
                     ),
+                    106 | 107 | 108 | 112 => format!(
+                        "rewrite {} B -> {} B in={} out={}",
+                        body.len(),
+                        bytes.len(),
+                        hex_head(body, 64),
+                        hex_head(bytes, 64)
+                    ),
                     _ => format!("rewrite {} B -> {} B", body.len(), bytes.len()),
                 },
-                Outcome::Drop => "DROP".to_owned(),
+                Outcome::Drop => match packet_id {
+                    108 | 112 => {
+                        format!("DROP {} B body={}", body.len(), hex_head(body, 96))
+                    }
+                    _ => "DROP".to_owned(),
+                },
             };
             result.notices.push(format!(
                 "trace {seq} {} id={packet_id} {} [{what}]",
@@ -183,19 +204,22 @@ fn translate_inner(
         body,
         &mut current,
         &mut notices,
+        false,
     ) {
         StepFlow::Continue => {}
         StepFlow::Drop => {
+            notices.append(&mut state.notices);
             return Translation {
                 outcome: Outcome::Drop,
                 notices,
-            }
+            };
         }
         StepFlow::Failed => {
+            notices.append(&mut state.notices);
             return Translation {
                 outcome: Outcome::Unchanged,
                 notices,
-            }
+            };
         }
     }
 
@@ -214,19 +238,15 @@ fn translate_inner(
                     body,
                     &mut current,
                     &mut notices,
+                    true,
                 ) {
                     StepFlow::Continue => {}
-                    StepFlow::Drop => {
+                    StepFlow::Drop | StepFlow::Failed => {
+                        notices.append(&mut state.notices);
                         return Translation {
                             outcome: Outcome::Drop,
                             notices,
-                        }
-                    }
-                    StepFlow::Failed => {
-                        return Translation {
-                            outcome: Outcome::Unchanged,
-                            notices,
-                        }
+                        };
                     }
                 }
             }
@@ -274,6 +294,7 @@ fn run_steps(
     original: &[u8],
     current: &mut Option<Vec<u8>>,
     notices: &mut Vec<String>,
+    drop_on_failure: bool,
 ) -> StepFlow {
     for step in steps {
         if step.is_cancelled(direction, packet_id) {
@@ -294,12 +315,23 @@ fn run_steps(
                     wrapper.finish()
                 }
                 Err(err) => {
-                    notices.push(format!(
-                        "{}: failed to translate {} {}: {err}",
-                        step.name,
-                        direction.as_str(),
-                        packet_ids::label(packet_id),
-                    ));
+                    if state.first_failure(direction, packet_id) {
+                        let outcome = if drop_on_failure {
+                            "dropping it — an untranslated body handed to a peer on \
+                             the other version is how this turns into a crash rather \
+                             than a gap"
+                        } else {
+                            "forwarding it untranslated"
+                        };
+                        notices.push(format!(
+                            "{}: failed to translate {} {}: {err} — {outcome}. \
+                             Further failures on this packet stay silent for this \
+                             connection.",
+                            step.name,
+                            direction.as_str(),
+                            packet_ids::label(packet_id),
+                        ));
+                    }
                     return StepFlow::Failed;
                 }
             }

@@ -46,11 +46,17 @@ LeviLamina mod。
   搬到了 Cereal 反射上，gophertunnel 侧一次动了 53 个文件，是本项目跨过的最大一道坎。
   登录/出生/移动这条链路是通的，但下面这些包**只丢不转**，因为它们的子结构是独立变的，
   半对的猜测会在离出错点很远的地方炸：`PlayerSkin`（重做后的皮肤块经由另一层外壳传递，
-  那层外壳还没有实际抓包核对过）、`MapData`、`SetScore`、`SetScoreboardIdentity`、
-  `ClientboundUpdateSoundData`、`StructureBlockUpdate`、`SubChunk`（条目里四个字段
+  那层外壳还没有实际抓包核对过）、`MapData`、
+  `ClientboundUpdateSoundData`、`SubChunk`（条目里四个字段
   全变成了 optional）、`PlayerLocation`（唯一 id 和 type 换了位置、type 从定长 i32
   变成 varint；gophertunnel 自己的 v2168 marshal 还把 type 写了两遍，它的模型要么在
   描述一个真的重复字段、要么就是错的，两种猜法都不值得赌）。
+  `SetScore`(108) / `SetScoreboardIdentity`(112) **已实现**，见 `steps/set_score_v2168.rs`。
+  这两个包就是侧边栏：107 画标题、108 画下面每一行，所以单丢 108 的症状精确等于「计分板只有
+  标题、一行都没有」。1.26.40 把 108 的每个条目改成了 Cereal 变体，判别符是
+  **`varuint32` 下标 + 一个名字字符串**（`Remove` / `ChangePlayer` / `ChangeEntity` /
+  `ChangeFakePlayer`），包头那个 `ScorePacketType` 字节整个没了；`Remove` 条目不再带 score，
+  objective 名变成可选。112 相反，保留类型字节，只是每条的 player id 变成可选。
   `CraftingData`(52) **已实现**，见 `steps/crafting_data_v2168.rs`。一个配方表拆成了八个
   定型数组，而 `recipeType` 判别值**不是连续的**：`recipe.go` 的 `iota` 里有两个空位
   （炉子、炉子数据留下的），真实取值是 0, 1, 4, 5, 6, 7, 8, 9。另外配方里的物品描述符
@@ -82,7 +88,20 @@ LeviLamina mod。
   游戏规则整数是**无符号 varint 而不是 zigzag**（读的字节数一样，所以不会错位，
   只会让客户端拿到一个没人发过的值）。出生流程里前两者都必发，漏掉任何一个都表现为
   "登录成功、进服前掉线"。
+  `StructureBlockUpdate`(90) **已实现**。它唯一的变化是尾巴上的 `RedstoneSaveMode`
+  从 varint 收窄成一个字节，而这个字段在 `StructureSettings` 那一大坨后面 —— 从包头
+  走过去需要整个 settings 的线格式，这是它当初被丢掉的原因。现在改成从**尾部**定锚：
+  末三字节是 `[RedstoneSaveMode][ShouldTrigger][Waterlogged]`，只重编中间那一个字节，
+  长度不变，前面所有内容原样搬运、一个字节都不解析。动手前先校验（两个 bool 必须真是
+  0/1、模式值在范围内、varint 那侧必须是单字节非负），校验不过就退回丢包 —— 也就是
+  改动之前的行为，不会写出半成品。
 - 目标版本没有的包会被**丢弃**而不是硬转。丢包损失一个功能，硬转损失整条连接。
+- **翻译链上翻译失败也一样丢包。** 曾经是「转发原包」，理由是"原包只是版本不对，还能救、
+  而且够吵"。这个理由是错的：把一份 v975 的包原样交给 v2168 客户端，对端不会看出这是
+  另一个版本，它会按自己的布局去解析 —— 长度当成计数、计数当成长度 —— 结果不是少一个
+  子区块，而是客户端当场死掉。而且链式翻译时它还会把前一跳已经翻好的结果一起扔掉。
+  只有 base 步骤（登录改写）保留原语义：那一处丢包会让玩家连不进来，而转发原包只是
+  退化成正常的"版本不匹配"界面。失败提示按「方向 + 包 id」每条连接只报一次。
 
 ## 依赖
 
@@ -112,6 +131,38 @@ workspace 里虽然有三个 crate，但只有 `crossbind-mod` 声明了 `crate-
 不用配。服务端协议版本在 `on_enable` 里通过 `ctx.server().protocol_version()` 读出来
 （底层是 `SharedConstants::NetworkProtocolVersion()`，走 loader 已有的 `server_info_str`
 槽位，不需要新 ABI）。
+
+有三个环境变量在极少数情况下需要动。
+
+第一个是 `CROSSBIND_SUBCHUNK`，控制 `SubChunk` 条目往 1.26.40 转的形态。默认 `c`：
+**hash 非零才公布给客户端**（全是空气的子区块 hash 为 0，那是填充值，不是真 blob）。
+
+这一档有过一次失败的尝试，记在这里省得再走一遍：曾把默认改成 `e`（一个 hash 都不公布），
+理由是兑现 hash 要走 `ClientCacheBlobStatus`(135) / `ClientCacheMissResponse`(136)，而
+135 在这一档没 handler、136 在任何一档都没有。抓包否掉了：1.26.40 客户端登录、出生、
+请求了 156 个子区块、收到四个各短了 617 字节的 `SubChunk`（156 × 8 字节 hash），然后在
+出生后一秒左右直接退出世界。**包头说缓存开着、条目又带 payload 时，客户端要求这个条目
+说出自己是哪个 blob。** 现在 `e` 只作为诊断项保留。
+
+其余取值：`a` 每个条目都公布（gophertunnel 原样模型，会让客户端去要一个 id 为 0 的
+blob 然后卡住）、`b`/`d`/`f` 是 `a`/`c`/`e` 再去掉高度图类型字节、`air` 只保留框架不发
+方块（诊断用）、`off` 直接丢掉整个包。
+
+第二个是 `CROSSBIND_SET_SCORE`。**默认就是翻译，不用配。** 只有 `off`（含 `0`/`false`/`drop`）
+会让 `SetScore`(108) / `SetScoreboardIdentity`(112) 退回丢弃，代价是 1.26.4x 客户端的计分板
+只有标题、一行都没有。
+
+之前这里有一整套候选布局阶梯（`probe`/`a`~`g`），现在全删了：v2168 的线格式已经拿到权威依据，
+不用再猜。写 `probe` 或任何旧档位名现在都等于"开"。
+
+第三个是 `CROSSBIND_PLAYSOUND_LOOPS`。1.26.40 给 `PlaySound`
+加了 `LoopCount`，`-1` 是「永远循环」，`0` 是「放一遍」。老版本的包里没有这个字段，往上
+转的时候必须凭空补一个，现在补的是 `0`。**只有当你发现 1.26.40 客户端那边音效一声都不响
+时**才把它设成 `1`（那说明这个字段数的是「播放次数」而不是「额外循环次数」）：
+
+```bash
+CROSSBIND_PLAYSOUND_LOOPS=1 ./bedrock_server
+```
 
 如果服务端本身跑在不能翻译的版本上（比如 1.26.30 / 协议 1001），mod 会打印一条警告然后
 **不安装拦截器**。这是有意的：base 步骤会改写 `Login` 里的协议号来骗过 BDS 的版本检查，

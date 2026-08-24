@@ -11,6 +11,7 @@ pub mod v975_v1001;
 pub mod item_stack_v2168;
 pub mod crafting_data_v2168;
 pub mod player_list_v2168;
+pub mod set_score_v2168;
 pub mod v1001_v2168;
 
 pub fn all() -> Vec<Arc<Translator>> {

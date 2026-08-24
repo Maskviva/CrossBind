@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use bedrock_protocol::{translate, versions, ConnState, Direction, Outcome, Registry};
+use bedrock_protocol::{
+    describe_set_score_layout, translate, versions, ConnState, Direction, Outcome, Registry,
+};
 use levilamina::packet::{ConnectionState, Direction as HookDirection, Verdict};
 use levilamina::prelude::*;
 
@@ -48,6 +50,7 @@ impl LeviMod for Crossbind {
 
         let registry = REGISTRY.get_or_init(|| bedrock_protocol::build_registry(server_protocol));
         logger.info(&bedrock_protocol::describe_support(registry));
+        logger.info(&describe_set_score_layout());
 
         ctx.packets()
             .intercept(HookDirection::Both, move |packet| {
