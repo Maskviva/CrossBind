@@ -5,6 +5,7 @@ use crate::connection::ConnState;
 use crate::direction::Direction;
 use crate::manager::Registry;
 use crate::packet_ids;
+use crate::steps::v1001_v2168::{play_sound_loop_label, sub_chunk_mode_label};
 use crate::translator::Translator;
 use bedrock_codec::prelude::{Bool, Str};
 use bedrock_codec::{Codec, PacketWrapper, Reader};
@@ -79,11 +80,11 @@ pub fn translate(
             ));
             result.notices.push(format!(
                 "SubChunk mode {} (override with CROSSBIND_SUBCHUNK)",
-                crate::steps::v1001_v2168::sub_chunk_mode_label()
+                sub_chunk_mode_label()
             ));
             result.notices.push(format!(
                 "PlaySound LoopCount {} (override with CROSSBIND_PLAYSOUND_LOOPS)",
-                crate::steps::v1001_v2168::play_sound_loop_label()
+                play_sound_loop_label()
             ));
             result.notices.push(format!(
                 "blob cache {} (override with CROSSBIND_BLOB_CACHE)",
@@ -286,6 +287,7 @@ enum StepFlow {
     Failed,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_steps(
     steps: &[std::sync::Arc<Translator>],
     state: &mut ConnState,

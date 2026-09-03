@@ -34,6 +34,6 @@ pub use level_settings::{
 pub use nbt::{NamedCompoundTag, EMPTY_NAMED_COMPOUND};
 pub use primitives::{
     Array, ArrayI32, ArrayU32, BlockPos, Bool, Byte, ByteArray, DoubleLe, FloatLe, Int64Le, IntBe,
-    IntLe, MceUuid, NetworkBlockPos, Optional, Pair, RemainingBytes, SByte, ShortLe,
-    Str, UInt64Le, UIntLe, UShortLe, UVarInt, UVarInt64, Uuid, VarInt, VarInt64, Vec2, Vec3,
+    IntLe, MceUuid, NetworkBlockPos, Optional, Pair, RemainingBytes, SByte, ShortLe, Str, UInt64Le,
+    UIntLe, UShortLe, UVarInt, UVarInt64, Uuid, VarInt, VarInt64, Vec2, Vec3,
 };

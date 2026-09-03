@@ -2,17 +2,14 @@ use std::sync::Arc;
 
 use crate::translator::Translator;
 
+pub mod v1001_v2168;
+pub mod v2168_v2169;
 pub mod v859_v860;
 pub mod v860_v898;
 pub mod v898_v924;
 pub mod v924_v944;
 pub mod v944_v975;
 pub mod v975_v1001;
-pub mod item_stack_v2168;
-pub mod crafting_data_v2168;
-pub mod player_list_v2168;
-pub mod set_score_v2168;
-pub mod v1001_v2168;
 
 pub fn all() -> Vec<Arc<Translator>> {
     vec![
@@ -30,6 +27,8 @@ pub fn all() -> Vec<Arc<Translator>> {
         Arc::new(v975_v1001::upgrade()),
         Arc::new(v1001_v2168::downgrade()),
         Arc::new(v1001_v2168::upgrade()),
+        Arc::new(v2168_v2169::downgrade()),
+        Arc::new(v2168_v2169::upgrade()),
     ]
 }
 

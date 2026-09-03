@@ -5,27 +5,85 @@ pub struct Version {
 }
 
 pub const VERSIONS: &[Version] = &[
-    Version { protocol: 2168, name: "1.26.40" },
-    Version { protocol: 1001, name: "1.26.30" },
-    Version { protocol: 975, name: "1.26.20" },
-    Version { protocol: 944, name: "1.26.10" },
-    Version { protocol: 924, name: "1.26.0" },
-    Version { protocol: 898, name: "1.21.130" },
-    Version { protocol: 860, name: "1.21.124" },
-    Version { protocol: 859, name: "1.21.120" },
-    Version { protocol: 844, name: "1.21.111" },
-    Version { protocol: 827, name: "1.21.100" },
-    Version { protocol: 819, name: "1.21.93" },
-    Version { protocol: 818, name: "1.21.90" },
-    Version { protocol: 800, name: "1.21.80" },
-    Version { protocol: 786, name: "1.21.70" },
-    Version { protocol: 776, name: "1.21.60" },
-    Version { protocol: 766, name: "1.21.50" },
-    Version { protocol: 748, name: "1.21.40" },
-    Version { protocol: 729, name: "1.21.30" },
+    Version {
+        protocol: 2169,
+        name: "1.26.45",
+    },
+    Version {
+        protocol: 2168,
+        name: "1.26.40",
+    },
+    Version {
+        protocol: 1001,
+        name: "1.26.30",
+    },
+    Version {
+        protocol: 975,
+        name: "1.26.20",
+    },
+    Version {
+        protocol: 944,
+        name: "1.26.10",
+    },
+    Version {
+        protocol: 924,
+        name: "1.26.0",
+    },
+    Version {
+        protocol: 898,
+        name: "1.21.130",
+    },
+    Version {
+        protocol: 860,
+        name: "1.21.124",
+    },
+    Version {
+        protocol: 859,
+        name: "1.21.120",
+    },
+    Version {
+        protocol: 844,
+        name: "1.21.111",
+    },
+    Version {
+        protocol: 827,
+        name: "1.21.100",
+    },
+    Version {
+        protocol: 819,
+        name: "1.21.93",
+    },
+    Version {
+        protocol: 818,
+        name: "1.21.90",
+    },
+    Version {
+        protocol: 800,
+        name: "1.21.80",
+    },
+    Version {
+        protocol: 786,
+        name: "1.21.70",
+    },
+    Version {
+        protocol: 776,
+        name: "1.21.60",
+    },
+    Version {
+        protocol: 766,
+        name: "1.21.50",
+    },
+    Version {
+        protocol: 748,
+        name: "1.21.40",
+    },
+    Version {
+        protocol: 729,
+        name: "1.21.30",
+    },
 ];
 
-pub const TRANSLATABLE: &[u32] = &[859, 860, 898, 924, 944, 975, 1001, 2168];
+pub const TRANSLATABLE: &[u32] = &[859, 860, 898, 924, 944, 975, 1001, 2168, 2169];
 
 pub fn name_of(protocol: u32) -> Option<&'static str> {
     VERSIONS
@@ -107,7 +165,7 @@ mod tests {
 
     #[test]
     fn nearest_below_picks_the_right_neighbour() {
-        assert_eq!(nearest_translatable_below(2200), Some(2168));
+        assert_eq!(nearest_translatable_below(2200), Some(2169));
         assert_eq!(nearest_translatable_below(1000), Some(975));
         assert_eq!(nearest_translatable_below(900), Some(898));
         assert_eq!(nearest_translatable_below(859), Some(859));

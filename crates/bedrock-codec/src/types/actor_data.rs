@@ -1,6 +1,6 @@
+use crate::types::enums::data_item_type as dit;
 use crate::types::nbt::NamedCompoundTag;
 use crate::types::primitives::{BlockPos, Vec3};
-use crate::types::enums::data_item_type as dit;
 use crate::{Codec, Error, Reader, Result, Writer};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -254,7 +254,10 @@ mod tests {
         let mut w = Writer::new();
         ActorDataListV2168::write(&mut w, &list);
         let bytes = w.into_vec();
-        assert_eq!(&bytes[..4], &[0x01, 0x04, dit::STRING as u8, dit::STRING as u8]);
+        assert_eq!(
+            &bytes[..4],
+            &[0x01, 0x04, dit::STRING as u8, dit::STRING as u8]
+        );
 
         let mut r = Reader::new(&bytes);
         assert_eq!(ActorDataListV2168::read(&mut r).unwrap(), list);

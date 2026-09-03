@@ -80,14 +80,7 @@ pub mod command_origin_type {
 
 pub mod command_permission_level {
     pub const ANY: u32 = 0;
-    pub const LABELS: [&str; 6] = [
-        "any",
-        "gamedirectors",
-        "admin",
-        "host",
-        "owner",
-        "internal",
-    ];
+    pub const LABELS: [&str; 6] = ["any", "gamedirectors", "admin", "host", "owner", "internal"];
 }
 
 pub mod command_output_type {

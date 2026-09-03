@@ -1,0 +1,41 @@
+{
+  "format_version": 3,
+  "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
+  "tooth": "github.com/Maskviva/crossbind",
+  "version": "0.1.2",
+  "info": {
+    "name": "crossbind",
+    "description": "Lets Bedrock clients on a different protocol version join the server, by translating packets in both directions.",
+    "author": "Maskviva",
+    "license": "Apache-2.0",
+    "homepage": "https://github.com/Maskviva/crossbind",
+    "tags": [
+      "platform:levilamina",
+      "type:mod"
+    ]
+  },
+  "variants": [
+    {
+      "platform": "win-x64",
+      "dependencies": {
+        "github.com/LiteLDev/LeviLamina": "26.20.4",
+        "github.com/Maskviva/pier": "26.20.1"
+      },
+      "assets": [
+        {
+          "type": "zip",
+          "urls": [
+            "https://github.com/Maskviva/crossbind/releases/download/v0.1.2/crossbind-server-windows-x64.zip"
+          ],
+          "placements": [
+            {
+              "type": "dir",
+              "src": ".",
+              "dest": "mods/crossbind/"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

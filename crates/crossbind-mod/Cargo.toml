@@ -1,9 +1,9 @@
 [package]
 name = "crossbind-mod"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "LeviLamina Rust mod: lets Bedrock clients join servers on a different protocol version"
+description = "Pier mod: lets Bedrock clients join servers on a different protocol version"
 
 [lib]
 name = "crossbind"
@@ -12,4 +12,8 @@ crate-type = ["cdylib"]
 [dependencies]
 bedrock-codec = { path = "../bedrock-codec" }
 bedrock-protocol = { path = "../bedrock-protocol" }
-levilamina = { path = "../../../levilamina-rust-loader/crates/levilamina", default-features = false, features = ["server"] }
+pier-rs = { git = "https://github.com/Maskviva/pier", tag = "26.20.1" }
+
+[features]
+default = []
+client = ["pier-rs/client"]

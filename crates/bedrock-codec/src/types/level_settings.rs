@@ -196,13 +196,8 @@ where
 pub type LevelSettingsV860 = LevelSettingsWith<UVarInt32AsI32, ArrayI32<ExperimentEntry>>;
 pub type LevelSettingsV924 = LevelSettingsWith<UVarInt32AsI32, ArrayU32<ExperimentEntry>>;
 pub type LevelSettingsV944 = LevelSettingsWith<VarInt, ArrayU32<ExperimentEntry>>;
-pub type LevelSettingsV2168 = LevelSettingsWith<
-    VarInt,
-    ArrayU32<ExperimentEntry>,
-    UVarInt32AsI32,
-    ByteAsI32,
-    GameRulesV2168,
->;
+pub type LevelSettingsV2168 =
+    LevelSettingsWith<VarInt, ArrayU32<ExperimentEntry>, UVarInt32AsI32, ByteAsI32, GameRulesV2168>;
 
 pub struct UVarInt32AsI32;
 

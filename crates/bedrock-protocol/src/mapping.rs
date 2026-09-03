@@ -107,7 +107,11 @@ mod tests {
     #[test]
     fn every_old_value_survives_a_round_trip() {
         for old in 0..1200u32 {
-            assert_eq!(SOUND.down(SOUND.up(old)), old, "old id {old} did not survive");
+            assert_eq!(
+                SOUND.down(SOUND.up(old)),
+                old,
+                "old id {old} did not survive"
+            );
         }
     }
 

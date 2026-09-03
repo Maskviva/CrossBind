@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-pub const MAX_PACKET_ID: u16 = 347;
+pub const MAX_PACKET_ID: u16 = 350;
 
 pub mod ids {
     pub const KEEP_ALIVE: u16 = 0;
@@ -251,7 +251,10 @@ pub mod ids {
     pub const CLIENTBOUND_ATTRIBUTE_LAYER_SYNC: u16 = 345;
     pub const SERVER_STORE_INFO: u16 = 346;
     pub const SERVER_PRESENCE_INFO: u16 = 347;
-    pub const PARTY_DESTINATION_COOKIE_RESPONSE: u16 = 350;}
+    pub const CLIENTBOUND_UPDATE_SOUND_DATA: u16 = 348;
+    pub const SEND_PARTY_DESTINATION_COOKIE: u16 = 349;
+    pub const PARTY_DESTINATION_COOKIE_RESPONSE: u16 = 350;
+}
 
 pub use ids::*;
 
@@ -298,6 +301,9 @@ pub fn label(packet_id: u16) -> String {
         ids::LOCATOR_BAR => "LocatorBar",
         ids::PARTY_CHANGED => "PartyChanged",
         ids::CLIENTBOUND_ATTRIBUTE_LAYER_SYNC => "ClientboundAttributeLayerSync",
+        ids::CLIENTBOUND_UPDATE_SOUND_DATA => "ClientboundUpdateSoundData",
+        ids::SEND_PARTY_DESTINATION_COOKIE => "SendPartyDestinationCookie",
+        ids::PARTY_DESTINATION_COOKIE_RESPONSE => "PartyDestinationCookieResponse",
         _ => return format!("Packet#{packet_id}"),
     };
     name.to_owned()

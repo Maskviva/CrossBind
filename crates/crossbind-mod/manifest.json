@@ -1,8 +1,0 @@
-{
-  "name": "crossbind",
-  "entry": "crossbind.dll",
-  "type": "rust-mod",
-  "version": "0.1.0",
-  "description": "Cross-version protocol adaptation: lets Bedrock clients on a different protocol version join this server.",
-  "dependencies": []
-}

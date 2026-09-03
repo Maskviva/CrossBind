@@ -1,4 +1,7 @@
-/target/
-/.idea/
-/devdocs/
+/.idea
+/target
+/devdocs
 Cargo.lock
+
+CONVENTIONS.md
+DEVLOG.md

@@ -47,7 +47,7 @@ pub fn downgrade() -> Translator {
         .clientbound(ids::SET_SPAWN_POSITION, spawn_position_to_signed)
         .clientbound(ids::TILE_EVENT, |w, _| tile_event_remap(w, true))
         .serverbound(ids::SET_SPAWN_POSITION, spawn_position_to_unsigned);
-    SoundRewriter::new(SOUND,  true, HEARTBEAT_KEY).register(step)
+    SoundRewriter::new(SOUND, true, HEARTBEAT_KEY).register(step)
 }
 
 pub fn upgrade() -> Translator {
@@ -55,7 +55,7 @@ pub fn upgrade() -> Translator {
         .clientbound(ids::SET_SPAWN_POSITION, spawn_position_to_unsigned)
         .clientbound(ids::TILE_EVENT, |w, _| tile_event_remap(w, false))
         .serverbound(ids::SET_SPAWN_POSITION, spawn_position_to_signed);
-    SoundRewriter::new(SOUND,  false, HEARTBEAT_KEY).register(step)
+    SoundRewriter::new(SOUND, false, HEARTBEAT_KEY).register(step)
 }
 
 #[cfg(test)]

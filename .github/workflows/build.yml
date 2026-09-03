@@ -1,0 +1,89 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --all -- --check
+
+      # The two protocol crates are host-independent and build anywhere. Only
+      # crossbind-mod pulls in pier-rs, which needs the Windows target.
+      - run: cargo clippy -p bedrock-codec -p bedrock-protocol --all-targets -- -D warnings
+
+      - run: cargo test -p bedrock-codec -p bedrock-protocol --verbose
+
+  build:
+    name: Build the ${{ matrix.target_type }} mod
+    # Pinned rather than windows-latest: that label moved to Visual Studio 2026 in
+    # June 2026, and a LeviLamina mod has to be built with a toolset ABI-compatible
+    # with BDS.
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target_type: [server, client]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target_type }}
+
+      # `client` selects bit 0 of mod_flags in the vtable. It adds and removes no API,
+      # so one source builds for both targets and the host refuses a mismatch during
+      # the handshake rather than failing later.
+      - name: Set the feature flags
+        shell: bash
+        run: |
+          if [ "${{ matrix.target_type }}" = "client" ]; then
+            echo "FEATURES=--features client" >> "$GITHUB_ENV"
+          else
+            echo "FEATURES=" >> "$GITHUB_ENV"
+          fi
+
+      - run: cargo clippy -p crossbind-mod --all-targets $FEATURES -- -D warnings
+        shell: bash
+
+      - run: cargo build -p crossbind-mod --release $FEATURES --verbose
+        shell: bash
+
+      # modpacker is not involved here, so the manifest is copied as it is and the
+      # platform field has to say which target this artifact is for.
+      - name: Stage the artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          cp target/release/crossbind.dll out/
+          python -c "
+          import json
+          m = json.load(open('manifest.json'))
+          m['platform'] = '${{ matrix.target_type }}'
+          json.dump(m, open('out/manifest.json', 'w'), indent=4)
+          "
+          cp README.md LICENSE out/ 2>/dev/null || true
+          ls -l out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crossbind-${{ matrix.target_type }}-${{ github.sha }}-windows-x64
+          path: out/

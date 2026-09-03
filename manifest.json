@@ -1,19 +1,19 @@
 {
     "name": "crossbind",
     "entry": "crossbind.dll",
-    "type": "rust",
+    "type": "pier",
     "platform": "server",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "author": "Maskviva",
     "description": "Cross-Protocol Adaptation Plugin",
     "dependencies": [
         {
-            "name": "levilamina-rust-loader"
+            "name": "pier"
         }
     ],
     "minecraft": {
         "bds_version": "1.26.20",
         "levilamina_version": "26.20.4",
-        "abi_version": 5
+        "abi_version": 1
     }
 }

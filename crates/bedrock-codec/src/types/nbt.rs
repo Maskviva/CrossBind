@@ -61,16 +61,14 @@ fn skip_payload(r: &mut Reader<'_>, tag_type: u8, depth: u32) -> Result<()> {
             }
             Ok(())
         }
-        TAG_COMPOUND => {
-            loop {
-                let child = r.read_u8()?;
-                if child == TAG_END {
-                    return Ok(());
-                }
-                skip_nbt_string(r)?;
-                skip_payload(r, child, depth + 1)?;
+        TAG_COMPOUND => loop {
+            let child = r.read_u8()?;
+            if child == TAG_END {
+                return Ok(());
             }
-        }
+            skip_nbt_string(r)?;
+            skip_payload(r, child, depth + 1)?;
+        },
         TAG_INT_ARRAY => {
             let count = r.read_varint()?;
             if count < 0 {
@@ -156,11 +154,7 @@ mod tests {
 
     #[test]
     fn stops_exactly_at_tag_end_and_leaves_the_tail() {
-        let tag = [
-            TAG_COMPOUND, 0x00,
-            TAG_BYTE, 0x01, b'a', 0x2A,
-            TAG_END,
-        ];
+        let tag = [TAG_COMPOUND, 0x00, TAG_BYTE, 0x01, b'a', 0x2A, TAG_END];
         let mut buf = tag.to_vec();
         buf.push(0xEE);
         let mut r = Reader::new(&buf);
@@ -172,9 +166,13 @@ mod tests {
     #[test]
     fn nested_list_of_compounds() {
         let tag = [
-            TAG_COMPOUND, 0x00,
-            TAG_LIST, 0x01, b'l',
-            TAG_COMPOUND, 0x04,
+            TAG_COMPOUND,
+            0x00,
+            TAG_LIST,
+            0x01,
+            b'l',
+            TAG_COMPOUND,
+            0x04,
             TAG_END,
             TAG_END,
             TAG_END,

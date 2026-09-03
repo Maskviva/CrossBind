@@ -1,6 +1,12 @@
+#![allow(missing_docs)]
+extern crate core;
+
 pub mod base;
 pub mod connection;
+pub mod convert;
+pub mod diag;
 pub mod direction;
+pub mod item_remap;
 pub mod manager;
 pub mod mapping;
 pub mod packet_ids;
@@ -14,11 +20,12 @@ pub mod versions;
 use std::sync::Arc;
 
 pub use connection::ConnState;
+pub use convert::describe_set_score_layout;
 pub use direction::Direction;
+pub use item_remap::{ClientItems, ItemRemap, RemapLoadError};
 pub use manager::{Chain, Registry};
 pub use mapping::{IdShift, MappingData};
 pub use pipeline::{translate, Outcome, Translation};
-pub use steps::set_score_v2168::describe_layout as describe_set_score_layout;
 pub use translator::{Handler, Translator};
 pub use versions::Version;
 
@@ -169,7 +176,7 @@ mod tests {
         );
     }
 
-    fn warnings(result: &crate::pipeline::Translation) -> usize {
+    fn warnings(result: &Translation) -> usize {
         result
             .notices
             .iter()

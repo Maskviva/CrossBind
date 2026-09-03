@@ -9,7 +9,10 @@ const SOUND: IdShift = IdShift::inserted(12, 566);
 const ACTOR_EVENT: IdShift = IdShift::inserted(1, 80);
 const HEARTBEAT_KEY: u32 = 126;
 
-fn mob_effect_add_ambient(w: &mut PacketWrapper, _: &mut crate::connection::ConnState) -> Result<()> {
+fn mob_effect_add_ambient(
+    w: &mut PacketWrapper,
+    _: &mut crate::connection::ConnState,
+) -> Result<()> {
     w.passthrough::<UVarInt64>()?;
     w.passthrough::<Byte>()?;
     w.passthrough::<VarInt>()?;
@@ -21,7 +24,10 @@ fn mob_effect_add_ambient(w: &mut PacketWrapper, _: &mut crate::connection::Conn
     Ok(())
 }
 
-fn mob_effect_drop_ambient(w: &mut PacketWrapper, _: &mut crate::connection::ConnState) -> Result<()> {
+fn mob_effect_drop_ambient(
+    w: &mut PacketWrapper,
+    _: &mut crate::connection::ConnState,
+) -> Result<()> {
     w.passthrough::<UVarInt64>()?;
     w.passthrough::<Byte>()?;
     w.passthrough::<VarInt>()?;
@@ -47,7 +53,10 @@ fn animate_drop_data(w: &mut PacketWrapper, _: &mut crate::connection::ConnState
     Ok(())
 }
 
-fn interact_add_position(w: &mut PacketWrapper, _: &mut crate::connection::ConnState) -> Result<()> {
+fn interact_add_position(
+    w: &mut PacketWrapper,
+    _: &mut crate::connection::ConnState,
+) -> Result<()> {
     use bedrock_codec::types::enums::interact_action as ia;
     let action = w.passthrough::<Byte>()?;
     w.passthrough::<UVarInt64>()?;
@@ -59,7 +68,10 @@ fn interact_add_position(w: &mut PacketWrapper, _: &mut crate::connection::ConnS
     Ok(())
 }
 
-fn interact_drop_position(w: &mut PacketWrapper, _: &mut crate::connection::ConnState) -> Result<()> {
+fn interact_drop_position(
+    w: &mut PacketWrapper,
+    _: &mut crate::connection::ConnState,
+) -> Result<()> {
     use bedrock_codec::types::enums::interact_action as ia;
     let action = w.passthrough::<Byte>()?;
     w.passthrough::<UVarInt64>()?;
@@ -125,7 +137,10 @@ fn telemetry_widen_type(w: &mut PacketWrapper, _: &mut crate::connection::ConnSt
     Ok(())
 }
 
-fn telemetry_narrow_type(w: &mut PacketWrapper, _: &mut crate::connection::ConnState) -> Result<()> {
+fn telemetry_narrow_type(
+    w: &mut PacketWrapper,
+    _: &mut crate::connection::ConnState,
+) -> Result<()> {
     w.passthrough::<VarInt64>()?;
     w.map::<VarInt32FromI8, SByte>()?;
     Ok(())
@@ -152,7 +167,7 @@ pub fn downgrade() -> Translator {
         .serverbound(ids::ANIMATE, animate_drop_data)
         .serverbound(ids::INTERACT, interact_drop_position);
 
-    let step = SoundRewriter::new(SOUND,  true, HEARTBEAT_KEY).register(step);
+    let step = SoundRewriter::new(SOUND, true, HEARTBEAT_KEY).register(step);
     ActorEventRewriter::new(ACTOR_EVENT, true).register(step)
 }
 
@@ -166,7 +181,7 @@ pub fn upgrade() -> Translator {
         .serverbound(ids::ANIMATE, animate_add_data)
         .serverbound(ids::INTERACT, interact_add_position);
 
-    let step = SoundRewriter::new(SOUND,  false, HEARTBEAT_KEY).register(step);
+    let step = SoundRewriter::new(SOUND, false, HEARTBEAT_KEY).register(step);
     ActorEventRewriter::new(ACTOR_EVENT, false).register(step)
 }
 
@@ -176,10 +191,7 @@ mod tests {
     use crate::connection::ConnState;
     use crate::direction::Direction;
 
-    fn run(
-        handler: fn(&mut PacketWrapper, &mut ConnState) -> Result<()>,
-        input: &[u8],
-    ) -> Vec<u8> {
+    fn run(handler: fn(&mut PacketWrapper, &mut ConnState) -> Result<()>, input: &[u8]) -> Vec<u8> {
         let mut state = ConnState::new(860);
         let mut w = PacketWrapper::new(input);
         handler(&mut w, &mut state).expect("handler failed");

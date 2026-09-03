@@ -297,7 +297,10 @@ mod tests {
             NetworkItemInstanceDescriptorV2168::write(&mut w, &item);
             let bytes = w.into_vec();
             let mut r = Reader::new(&bytes);
-            assert_eq!(NetworkItemInstanceDescriptorV2168::read(&mut r).unwrap(), item);
+            assert_eq!(
+                NetworkItemInstanceDescriptorV2168::read(&mut r).unwrap(),
+                item
+            );
             assert_eq!(r.remaining(), 0);
         }
     }

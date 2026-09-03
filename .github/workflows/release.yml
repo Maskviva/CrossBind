@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    name: Build the ${{ matrix.target_type }} mod
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target_type: [server, client]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target_type }}
+
+      - name: Set the feature flags
+        shell: bash
+        run: |
+          if [ "${{ matrix.target_type }}" = "client" ]; then
+            echo "FEATURES=--features client" >> "$GITHUB_ENV"
+          else
+            echo "FEATURES=" >> "$GITHUB_ENV"
+          fi
+
+      - run: cargo build -p crossbind-mod --release $FEATURES --verbose
+        shell: bash
+
+      # The release tag is the source of truth for the version. A tag that disagrees
+      # with manifest.json means a server owner installs something whose version does
+      # not match what lip recorded, so it stops here instead.
+      - name: Check the version against the tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(python -c "import json;print(json.load(open('manifest.json'))['version'])")
+          tooth=$(python -c "import json;print(json.load(open('tooth.json'))['version'])")
+          echo "tag=$tag manifest=$manifest tooth=$tooth"
+          if [ "$tag" != "$manifest" ] || [ "$tag" != "$tooth" ]; then
+            echo "::error::version mismatch: tag $tag, manifest.json $manifest, tooth.json $tooth"
+            exit 1
+          fi
+
+      # lip places the archive contents directly into mods/crossbind/, so the archive
+      # is flat: the dll and the manifest side by side, with no wrapping directory.
+      - name: Stage the artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          cp target/release/crossbind.dll out/
+          python -c "
+          import json
+          m = json.load(open('manifest.json'))
+          m['platform'] = '${{ matrix.target_type }}'
+          json.dump(m, open('out/manifest.json', 'w'), indent=4)
+          "
+          cp README.md LICENSE out/ 2>/dev/null || true
+          ls -l out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crossbind-${{ matrix.target_type }}-${{ github.sha }}-windows-x64
+          path: out/
+
+  upload:
+    name: Upload the archives
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: crossbind-server-${{ github.sha }}-windows-x64
+          path: server
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: crossbind-client-${{ github.sha }}-windows-x64
+          path: client
+
+      - name: Archive both
+        shell: bash
+        run: |
+          for t in server client; do
+            echo "--- $t"
+            find "$t"
+            ( cd "$t" && zip -r "../crossbind-$t-windows-x64.zip" . )
+          done
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            crossbind-server-windows-x64.zip
+            crossbind-client-windows-x64.zip

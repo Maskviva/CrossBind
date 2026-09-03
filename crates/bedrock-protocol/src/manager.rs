@@ -163,7 +163,11 @@ mod tests {
     fn clientbound_is_the_reverse_of_serverbound() {
         let reg = ladder(860);
         let chain = reg.chain(975).unwrap();
-        let up: Vec<u32> = chain.serverbound.iter().map(|s| s.client_protocol).collect();
+        let up: Vec<u32> = chain
+            .serverbound
+            .iter()
+            .map(|s| s.client_protocol)
+            .collect();
         let down: Vec<u32> = chain
             .clientbound
             .iter()
