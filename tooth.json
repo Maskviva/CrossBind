@@ -2,7 +2,7 @@
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
   "tooth": "github.com/Maskviva/crossbind",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "info": {
     "name": "crossbind",
     "description": "Lets Bedrock clients on a different protocol version join the server, by translating packets in both directions.",
@@ -25,7 +25,7 @@
         {
           "type": "zip",
           "urls": [
-            "https://github.com/Maskviva/crossbind/releases/download/v0.1.2/crossbind-server-windows-x64.zip"
+            "https://github.com/Maskviva/crossbind/releases/download/v0.2.0/crossbind-server-windows-x64.zip"
           ],
           "placements": [
             {

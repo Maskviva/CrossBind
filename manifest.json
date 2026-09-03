@@ -3,7 +3,7 @@
     "entry": "crossbind.dll",
     "type": "pier",
     "platform": "server",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "author": "Maskviva",
     "description": "Cross-Protocol Adaptation Plugin",
     "dependencies": [
