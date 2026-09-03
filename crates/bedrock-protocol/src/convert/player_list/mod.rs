@@ -2,9 +2,9 @@ mod codes;
 mod model;
 mod read_v1001;
 mod read_v2168;
-mod write;
 #[cfg(test)]
 mod tests;
+mod write;
 
 use crate::connection::ConnState;
 use bedrock_codec::prelude::*;

@@ -1,7 +1,7 @@
 use super::*;
+use crate::steps::v1001_v2168::movement::*;
 use bedrock_codec::prelude::*;
 use bedrock_codec::PacketWrapper;
-use crate::steps::v1001_v2168::movement::*;
 
 #[allow(unused)]
 const SUB_CHUNK_RESULT_LEVEL_CHUNK_DOESNT_EXIST: u8 = 2;

@@ -1,8 +1,8 @@
 mod model;
 mod read;
-mod write;
 #[cfg(test)]
 mod tests;
+mod write;
 
 use crate::connection::ConnState;
 use crate::direction::Direction;
