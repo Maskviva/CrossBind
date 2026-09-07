@@ -8,7 +8,7 @@
     "description": "Cross-Protocol Adaptation Plugin",
     "dependencies": [
         {
-            "name": "pier"
+            "name": "Pier"
         }
     ],
     "minecraft": {
