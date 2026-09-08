@@ -3,7 +3,7 @@
     "entry": "crossbind.dll",
     "type": "pier",
     "platform": "server",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "author": "Maskviva",
     "description": "Cross-Protocol Adaptation Plugin",
     "dependencies": [
@@ -12,8 +12,8 @@
         }
     ],
     "minecraft": {
-        "bds_version": "1.26.20",
-        "levilamina_version": "26.20.4",
+        "bds_version": "1.26.32",
+        "levilamina_version": "26.32.0",
         "abi_version": 1
     }
 }
