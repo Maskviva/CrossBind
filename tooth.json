@@ -42,7 +42,7 @@
       "platform": "win-x64",
       "dependencies": {
         "github.com/LiteLDev/LeviLamina#client": "26.32.*",
-        "github.com/Maskviva/Pier": "26.32.2"
+        "github.com/Maskviva/Pier#client": "26.32.2"
       },
       "assets": [
         {
