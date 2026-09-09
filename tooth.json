@@ -1,10 +1,10 @@
 {
   "format_version": 3,
   "format_uuid": "289f771f-2c9a-4d73-9f3f-8492495a924d",
-  "tooth": "github.com/Maskviva/crossbind",
+  "tooth": "github.com/Maskviva/CrossBind",
   "version": "0.2.1",
   "info": {
-    "name": "crossbind",
+    "name": "CrossBind",
     "description": "Lets Bedrock clients on a different protocol version join the server, by translating packets in both directions.",
     "author": "Maskviva",
     "license": "Apache-2.0",
@@ -18,14 +18,37 @@
     {
       "platform": "win-x64",
       "dependencies": {
-        "github.com/LiteLDev/LeviLamina": "26.32.0",
-        "github.com/Maskviva/pier": "26.32.2"
+        "github.com/LiteLDev/LeviLamina": "26.32.*",
+        "github.com/Maskviva/Pier": "26.32.2"
       },
       "assets": [
         {
           "type": "zip",
           "urls": [
-            "https://github.com/Maskviva/crossbind/releases/download/v0.2.1/crossbind-server-windows-x64.zip"
+            "https://{{tooth}}/releases/download/v{{version}}/crossbind-server-windows-x64.zip"
+          ],
+          "placements": [
+            {
+              "type": "dir",
+              "src": ".",
+              "dest": "plugins/crossbind/"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "client",
+      "platform": "win-x64",
+      "dependencies": {
+        "github.com/LiteLDev/LeviLamina#client": "26.32.*",
+        "github.com/Maskviva/Pier#client": "26.32.2"
+      },
+      "assets": [
+        {
+          "type": "zip",
+          "urls": [
+            "https://{{tooth}}/releases/download/v{{version}}/crossbind-client-windows-x64.zip"
           ],
           "placements": [
             {
